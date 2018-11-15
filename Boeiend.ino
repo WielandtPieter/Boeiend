@@ -88,7 +88,7 @@ void setup()
 
   //Enable Serial Port
 #ifdef VERBOSE
-  Serial.begin(115200);
+  Serial.begin(9600);
 #endif
 
   //Enable Pin 3V3 LDO
