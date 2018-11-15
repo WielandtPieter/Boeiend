@@ -28,7 +28,7 @@
 
 //GPS declaraties
 TinyGPS gps;
-SoftwareSerial ss(4, 3);
+SoftwareSerial ss(10, 11); //Rx,Tx
 
 byte acc_buffer[ACC_BYTES];
 
