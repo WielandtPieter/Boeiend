@@ -27,8 +27,9 @@
 #define ACC_GAIN        0.00376390  //Convertion factor to g
 
 //GPS declaraties
+
+SoftwareSerial ss(10, 11); // RX, TX
 TinyGPS gps;
-SoftwareSerial ss(10, 11); //Rx,Tx
 
 byte acc_buffer[ACC_BYTES];
 
@@ -291,7 +292,7 @@ void measure() {
 
   //GPS CODE
 
-  bool newData = false;
+   bool newData = false;
   unsigned long chars;
   unsigned short sentences, failed;
 
@@ -300,8 +301,9 @@ void measure() {
   {
     while (ss.available())
     {
+      //Serial.println("test");
       char c = ss.read();
-      // Serial.write(c); // uncomment this line if you want to see the GPS data flowing
+       Serial.write(c); // uncomment this line if you want to see the GPS data flowing
       if (gps.encode(c)) // Did a new valid sentence come in?
         newData = true;
     }
