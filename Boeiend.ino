@@ -28,7 +28,7 @@
 
 //GPS declaraties
 
-SoftwareSerial ss(10, 11); // RX, TX
+SoftwareSerial ss(14, 15); //Rx,Tx //analoge pinnen gebruikt als digitale pinnen
 TinyGPS gps;
 
 byte acc_buffer[ACC_BYTES];
