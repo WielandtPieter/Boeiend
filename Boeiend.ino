@@ -341,15 +341,17 @@ void measure() {
   int altt = (int)(((((int)acc_buffer[5]) << 8) | acc_buffer[4]) * 3.76390);
 
   */
+  float flatCorrect = (flat*10000);
+  float flonCorrect = (flon*10000);
 
   lora_stream[/*4 * NUM_TEMP_SENSORS */12] = 3;
   lora_stream[/*4 * NUM_TEMP_SENSORS */13] = LORA_LPP_GPS;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */ 14] = (uint32_t)flat >> 16;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */ 15] = (uint32_t)flat >> 8;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */16] = (uint32_t)flat & 0xFF;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/17] = (uint32_t)flon >> 16;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/18] = (uint32_t)flon >> 8;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/19] = (uint32_t)flon & 0xFF;
+  lora_stream[/*4 * NUM_TEMP_SENSORS */ 14] = (uint32_t)flatCorrect >> 16;
+  lora_stream[/*4 * NUM_TEMP_SENSORS */ 15] = (uint32_t)flatCorrect >> 8;
+  lora_stream[/*4 * NUM_TEMP_SENSORS */16] = (uint32_t)flatCorrect & 0xFF;
+  lora_stream[/*4 * NUM_TEMP_SENSORS +*/17] = (uint32_t)flonCorrect >> 16;
+  lora_stream[/*4 * NUM_TEMP_SENSORS +*/18] = (uint32_t)flonCorrect >> 8;
+  lora_stream[/*4 * NUM_TEMP_SENSORS +*/19] = (uint32_t)flonCorrect & 0xFF;
   
   lora_stream[/*4 * NUM_TEMP_SENSORS +*/20] = 0x00;
   lora_stream[/*4 * NUM_TEMP_SENSORS +*/21] = 0x00;
