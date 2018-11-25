@@ -6,9 +6,7 @@
 #include<SoftwareSerial.h>
 //Accelerometer
 #include <Wire.h>
-//Temperature sensors
-//#include <OneWire.h>
-//#include <DallasTemperature.h>
+
 //LoRa Module
 #include <lmic.h>
 #include <hal/hal.h>
@@ -26,23 +24,15 @@
 #define ACC_BYTES       0x06  //Number of databytes
 #define ACC_GAIN        0.00376390  //Convertion factor to g
 
-//GPS declaraties
+//GPS declarations
 
-SoftwareSerial ss(14, 15); //Rx,Tx //analoge pinnen gebruikt als digitale pinnen
-TinyGPS gps;
+SoftwareSerial ss(14, 15); //Rx,Tx //analogue pins A0,A1
 
 byte acc_buffer[ACC_BYTES];
 
-//Temperature sensor parameters
-//#define TEMP_BUS      7     //Onewire pin
-//#define NUM_TEMP_SENSORS  1  //Number of temperature sensors 
-
-//OneWire oneWire(TEMP_BUS);                  //Setup onwire on selected pin
-//DallasTemperature temp_sensors(&oneWire);   //Setup temperature sensor
-//DeviceAddress tempSensorAddresses[NUM_TEMP_SENSORS];
-
 #define POWER_ENABLE_PIN 8
-#define MEASURE_INTERVAL 10*1000UL   //Measurement interval time in ms each quarter
+#define MEASURE_INTERVAL 20*1000UL   //Measurement interval time in ms each quarter //20s for testing purposes
+int factor = 1;
 
 //#define LORA_LPP_TEMP       0x67
 #define LORA_LPP_ACC        0x71
@@ -51,9 +41,9 @@ byte acc_buffer[ACC_BYTES];
 //uint8_t temp_sensor_channel[1] = {0};
 
 
-#define LORA_PACKET_SIZE (8+4+11)//GPS toegevoegd 9 bytes
+#define LORA_PACKET_SIZE (8+4+11)//consists of accelerometer, battery voltage and location data
 
-
+//keys for authentication on the things network
 
 // LoRaWAN NwkSKey, network session key
 static const PROGMEM u1_t NWKSKEY[16] = {0xEA, 0xC8, 0x01, 0x73, 0x1B, 0xCA, 0xD2, 0xFC, 0xB2, 0xCC, 0x14, 0x5D, 0xD6, 0x31, 0xFA, 0x44};
@@ -82,10 +72,8 @@ const lmic_pinmap lmic_pins = {
 void setup()
 {
 
-  //softwareserial voor GPS
+  //softwareserial for GPS
   ss.begin(9600);
-
-  //uint8_t detectedTempSensors;
 
   //Enable Serial Port
 #ifdef VERBOSE
@@ -97,72 +85,11 @@ void setup()
 #ifdef VERBOSE
   Serial.println(F("Dramco-UNO"));
 #endif
- /* //Start up temperature sensors
-  Serial.print(F("Adding temperature sensors, expecting "));
-  Serial.print(NUM_TEMP_SENSORS);
-  Serial.println(F(" sensors."));
-
-  Serial.println(F("Add one sensor at a time in order to know the order of the temp. sensors."));
-
-
-#endif
-
-  bool stop = false;
-  int i = 0;
-
-  do {
-
-    temp_sensors.begin();
-    detectedTempSensors = temp_sensors.getDeviceCount();
-#ifdef VERBOSE
-    Serial.print(detectedTempSensors);
-    Serial.println(F(" temperature sensor(s) detected"));
-#endif
-
-    for (int j = 0; j < detectedTempSensors; j++) {
-      temp_sensors.getAddress(tempSensorAddresses[j], j);
-#ifdef VERBOSE
-      Serial.print(F("Sensor "));
-      Serial.print(j);
-      Serial.print(F(": "));
-      printAddress(tempSensorAddresses[j]);
-#endif
-    }
-
-    // read to clear rx buffer
-    while (Serial.available() > 0) { Serial.read();}
-
-    Serial.println(F(" Scan again (Y/N)?"));
-    while (Serial.available() == 0) { }
-
-    
-    if (Serial.read() == 'N') stop = true;
-    i++;
-    // read to clear rx buffer
-    while (Serial.available() > 0) { Serial.read();}
-    
-  } while (i < NUM_TEMP_SENSORS && !stop);
-
-
-  temp_sensors.setResolution(10);   //10 bit -> conversion time 187.5 ms //resolutie lager maken?*/
 
   //Start measurement scheduler
   scheduler.schedule(measure);
 }
 
-// function to print a device address
-/*void printAddress(DeviceAddress deviceAddress)
-{
-  for (uint8_t i = 0; i < 8; i++)
-  {
-    // zero pad the address if necessary
-    if (deviceAddress[i] < 16) Serial.print("0");
-    Serial.print(deviceAddress[i], HEX);
-  }
-  Serial.println();
-}
-
-*/
 void measure() {
   //uint8_t detectedTempSensors;
   //float temp_buffer[NUM_TEMP_SENSORS];
@@ -222,21 +149,6 @@ void measure() {
   //Put the ADXL345 into Measurement Mode by writing 0x08 to the POWER_CTL register.
   writeTo(ACC_POWER_CTL, 0x08);
 
- /* temp_sensors.requestTemperatures(); // Send the command to get temperature readings
-  for (uint8_t i = 0; i < NUM_TEMP_SENSORS; i++) {
-    temp_buffer[i] = temp_sensors.getTempC(tempSensorAddresses[i]);
-
-    lora_stream[0 + 4 * i] =0; //temp_sensor_channel[i];
-    lora_stream[1 + 4 * i] =0; // LORA_LPP_TEMP;
-    lora_stream[2 + 4 * i] =0; // (uint8_t)((int16_t)(temp_buffer[i] * 10) >> 8);
-    lora_stream[3 + 4 * i] =0; //(uint8_t)((int16_t)(temp_buffer[i] * 10) & 0xFF);
-#ifdef VERBOSE
-    Serial.print("Temp ");
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.print(temp_buffer[i]);
-#endif
- }*/
 #ifdef VERBOSE
   Serial.println();
 #endif
@@ -249,14 +161,15 @@ void measure() {
   int acc_y = (int)(((((int)acc_buffer[3]) << 8) | acc_buffer[2]) * 3.76390);
   int acc_z = (int)(((((int)acc_buffer[5]) << 8) | acc_buffer[4]) * 3.76390);
 
-  lora_stream[/*4 * NUM_TEMP_SENSORS */0] = 3;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */1] = LORA_LPP_ACC;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */ 2] = acc_x >> 8;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */3] = acc_x & 0xFF;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/4] = acc_y >> 8;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/5] = acc_y & 0xFF;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/6] = acc_z >> 8;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/7] = acc_z & 0xFF;
+  lora_stream[0] = 3;
+  lora_stream[1] = LORA_LPP_ACC;
+  lora_stream[2] = acc_x >> 8;
+  lora_stream[3] = acc_x & 0xFF;
+  lora_stream[4] = acc_y >> 8;
+  lora_stream[5] = acc_y & 0xFF;
+  lora_stream[6] = acc_z >> 8;
+  lora_stream[7] = acc_z & 0xFF;
+  
 #ifdef VERBOSE
   Serial.print(F("x: "));
   Serial.print(acc_x);
@@ -264,18 +177,34 @@ void measure() {
   Serial.print(acc_y);
   Serial.print(F(" z: "));
   Serial.println(acc_z);
+
+  //adapt measuring frequency according to weather 
+  boolean half = false;
+  if((acc_x + acc_y) >> 2)
+  {
+    //when rough weather is detected the measuring frequency is doubled
+    factor = 2; 
+    half = true;
+  }
+  if(((acc_x + acc_y) << 2) && half)
+  {
+    //when weather calmes, measuring frequency is reset to standard value
+    factor = 1;
+    half = false;
+  }
 #endif
 
   //Read Voltage
+  //battery voltage can be monitored from shore
   long batteryVoltage = readVcc();
 #ifdef VERBOSE
   Serial.print(F("Vbatt: "));
   Serial.println(batteryVoltage, DEC);
 #endif
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/8] = 3;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/9] = LORA_LPP_ANALOG_OUT;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/10] = (uint8_t)((int16_t)(batteryVoltage / 10) >> 8);
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/11] = (uint8_t)((int16_t)(batteryVoltage / 10) & 0xFF);
+  lora_stream[8] = 3;
+  lora_stream[9] = LORA_LPP_ANALOG_OUT;
+  lora_stream[10] = (uint8_t)((int16_t)(batteryVoltage / 10) >> 8);
+  lora_stream[11] = (uint8_t)((int16_t)(batteryVoltage / 10) & 0xFF);
 
   // Start job
   do_send(&sendjob);
@@ -288,77 +217,64 @@ void measure() {
   digitalWrite(POWER_ENABLE_PIN, LOW);
   pinMode(1, OUTPUT);
   digitalWrite(1, LOW);
-  scheduler.scheduleDelayed(measure, MEASURE_INTERVAL);
+  scheduler.scheduleDelayed(measure, (MEASURE_INTERVAL/factor));
 
   //GPS CODE
 
    bool newData = false;
   unsigned long chars;
-  unsigned short sentences, failed;
+  //unsigned short sentences, failed;
+  float flat = 0;
+  float flon = 0;
 
-  // For one second we parse GPS data and report some key values
-  for (unsigned long start = millis(); millis() - start < 1000;)
+  //check if GPS signal is correct
+  while(flat == 0 && flon == 0)
   {
-    while (ss.available())
+
+    // For one second we parse GPS data and report some key values
+    for (unsigned long start = millis(); millis() - start < 1000;)
     {
-      //Serial.println("test");
-      char c = ss.read();
-       Serial.write(c); // uncomment this line if you want to see the GPS data flowing
-      if (gps.encode(c)) // Did a new valid sentence come in?
-        newData = true;
+      while (ss.available())
+      {
+        char c = ss.read();
+        //Serial.write(c); // uncomment this line if you want to see the GPS data flowing
+        if (gps.encode(c)) // Did a new valid sentence come in?
+          newData = true;
+      }
     }
-  }
-  float flat, flon;
-  if (newData)
-  {
-    //float flat, flon;
-    unsigned long age;
-    gps.f_get_position(&flat, &flon, &age);
-    Serial.print("LAT=");
-    Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
-    Serial.print(" LON=");
-    Serial.print(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
-    Serial.print(" SAT=");
-    Serial.print(gps.satellites() == TinyGPS::GPS_INVALID_SATELLITES ? 0 : gps.satellites());
-    Serial.print(" PREC=");
-    Serial.print(gps.hdop() == TinyGPS::GPS_INVALID_HDOP ? 0 : gps.hdop());
-  }
   
-  gps.stats(&chars, &sentences, &failed);
-  Serial.print(" CHARS=");
-  Serial.print(chars);
-  Serial.print(" SENTENCES=");
-  Serial.print(sentences);
-  Serial.print(" CSUM ERR=");
-  Serial.println(failed);
-  if (chars == 0)
-    Serial.println("** No characters received from GPS: check wiring **");
+    if (newData)
+    {
+      //float flat, flon;
+      unsigned long age;
+      gps.f_get_position(&flat, &flon, &age);
+      Serial.print("LAT=");
+      Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
+      Serial.print(" LON=");
+      Serial.print(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
+      Serial.print(" SAT=");
+      Serial.print(gps.satellites() == TinyGPS::GPS_INVALID_SATELLITES ? 0 : gps.satellites());
+      Serial.print(" PREC=");
+      Serial.print(gps.hdop() == TinyGPS::GPS_INVALID_HDOP ? 0 : gps.hdop());
+    }
+    Serial.print("GPS signaal (nog) niet ok");
+  }
 
-
-/*
-  long latt =((long)flat);
-  int longg = (int)(((((int)acc_buffer[3]) << 8) | acc_buffer[2]) * 3.76390);
-  int altt = (int)(((((int)acc_buffer[5]) << 8) | acc_buffer[4]) * 3.76390);
-
-  */
   float flatCorrect = (flat*10000);
   float flonCorrect = (flon*10000);
 
-  lora_stream[/*4 * NUM_TEMP_SENSORS */12] = 3;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */13] = LORA_LPP_GPS;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */ 14] = (uint32_t)flatCorrect >> 16;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */ 15] = (uint32_t)flatCorrect >> 8;
-  lora_stream[/*4 * NUM_TEMP_SENSORS */16] = (uint32_t)flatCorrect & 0xFF;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/17] = (uint32_t)flonCorrect >> 16;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/18] = (uint32_t)flonCorrect >> 8;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/19] = (uint32_t)flonCorrect & 0xFF;
+  lora_stream[12] = 3;
+  lora_stream[13] = LORA_LPP_GPS;
+  lora_stream[14] = (uint32_t)flatCorrect >> 16;
+  lora_stream[15] = (uint32_t)flatCorrect >> 8;
+  lora_stream[16] = (uint32_t)flatCorrect & 0xFF;
+  lora_stream[17] = (uint32_t)flonCorrect >> 16;
+  lora_stream[18] = (uint32_t)flonCorrect >> 8;
+  lora_stream[19] = (uint32_t)flonCorrect & 0xFF;
   
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/20] = 0x00;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/21] = 0x00;
-  lora_stream[/*4 * NUM_TEMP_SENSORS +*/22] = 0x00;
-
-  
-    
+  lora_stream[20] = 0x00;
+  lora_stream[21] = 0x00;
+  lora_stream[22] = 0x00;
 }
 
 void loop()
