@@ -27,6 +27,7 @@
 //GPS declarations
 
 SoftwareSerial ss(14, 15); //Rx,Tx //analogue pins A0,A1
+TinyGPS gps;
 
 byte acc_buffer[ACC_BYTES];
 
@@ -206,6 +207,49 @@ void measure() {
   lora_stream[10] = (uint8_t)((int16_t)(batteryVoltage / 10) >> 8);
   lora_stream[11] = (uint8_t)((int16_t)(batteryVoltage / 10) & 0xFF);
 
+  //GPS CODE
+
+   bool newData = false;
+  unsigned long chars;
+  //unsigned short sentences, failed;
+  float flat = 0;
+  float flon = 0;
+
+  //check if GPS signal is correct
+  while(flat == 0 && flon == 0)
+  {
+    Serial.println("GPS signaal (nog) niet ok");
+    
+    // For one second we parse GPS data and report some key values
+    for (unsigned long start = millis(); millis() - start < 1000;)
+    {
+      while (ss.available())
+      {
+        char c = ss.read();
+        //Serial.write(c); // uncomment this line if you want to see the GPS data flowing
+        if (gps.encode(c)) // Did a new valid sentence come in?
+          newData = true;
+      }
+    
+  
+      if (newData)
+      {
+        //float flat, flon;
+        unsigned long age;
+        gps.f_get_position(&flat, &flon, &age);
+        Serial.print("LAT=");
+        Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
+        Serial.print(" LON=");
+        Serial.print(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
+        Serial.print(" SAT=");
+        Serial.print(gps.satellites() == TinyGPS::GPS_INVALID_SATELLITES ? 0 : gps.satellites());
+        Serial.print(" PREC=");
+        Serial.print(gps.hdop() == TinyGPS::GPS_INVALID_HDOP ? 0 : gps.hdop());
+      }
+      
+    }
+  }
+  
   // Start job
   do_send(&sendjob);
 
@@ -218,47 +262,6 @@ void measure() {
   pinMode(1, OUTPUT);
   digitalWrite(1, LOW);
   scheduler.scheduleDelayed(measure, (MEASURE_INTERVAL/factor));
-
-  //GPS CODE
-
-   bool newData = false;
-  unsigned long chars;
-  //unsigned short sentences, failed;
-  float flat = 0;
-  float flon = 0;
-
-  //check if GPS signal is correct
-  while(flat == 0 && flon == 0)
-  {
-
-    // For one second we parse GPS data and report some key values
-    for (unsigned long start = millis(); millis() - start < 1000;)
-    {
-      while (ss.available())
-      {
-        char c = ss.read();
-        //Serial.write(c); // uncomment this line if you want to see the GPS data flowing
-        if (gps.encode(c)) // Did a new valid sentence come in?
-          newData = true;
-      }
-    }
-  
-    if (newData)
-    {
-      //float flat, flon;
-      unsigned long age;
-      gps.f_get_position(&flat, &flon, &age);
-      Serial.print("LAT=");
-      Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
-      Serial.print(" LON=");
-      Serial.print(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
-      Serial.print(" SAT=");
-      Serial.print(gps.satellites() == TinyGPS::GPS_INVALID_SATELLITES ? 0 : gps.satellites());
-      Serial.print(" PREC=");
-      Serial.print(gps.hdop() == TinyGPS::GPS_INVALID_HDOP ? 0 : gps.hdop());
-    }
-    Serial.print("GPS signaal (nog) niet ok");
-  }
 
   float flatCorrect = (flat*10000);
   float flonCorrect = (flon*10000);
